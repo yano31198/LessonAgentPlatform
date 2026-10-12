@@ -15,6 +15,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
+import org.springframework.security.web.authentication.AnonymousAuthenticationFilter;
 
 import jakarta.servlet.http.HttpServletResponse;
 
@@ -35,18 +36,20 @@ public class PlatformSecurityConfig {
 
     @Bean
     @ConditionalOnProperty(prefix = "app.security", name = "enabled", havingValue = "true", matchIfMissing = true)
-    SecurityFilterChain secured(HttpSecurity http) throws Exception {
+    SecurityFilterChain secured(HttpSecurity http, InternalServiceTokenFilter internalService) throws Exception {
         CookieCsrfTokenRepository csrf = CookieCsrfTokenRepository.withHttpOnlyFalse();
         csrf.setCookiePath("/");
         return http
+                .addFilterBefore(internalService, AnonymousAuthenticationFilter.class)
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/actuator/health", "/api/auth/register",
                                 "/api/auth/login", "/api/auth/csrf").permitAll()
-                        .requestMatchers("/api/**").authenticated()
+                        .requestMatchers("/api/**").hasAnyRole("USER", "ADMIN", "SERVICE")
                         .anyRequest().permitAll())
                 .csrf(config -> config
                         .csrfTokenRepository(csrf)
-                        .ignoringRequestMatchers("/api/auth/register", "/api/auth/login", "/api/auth/logout"))
+                        .ignoringRequestMatchers("/api/auth/register", "/api/auth/login", "/api/auth/logout",
+                                "/api/platform/lessons/*/simulations"))
                 .requestCache(cache -> cache.disable())
                 .formLogin(login -> login.disable())
                 .httpBasic(basic -> basic.disable())

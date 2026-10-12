@@ -61,6 +61,7 @@ def load_config(path: str | Path) -> Dict[str, Any]:
         "f4SessionId": _uuid(_require_nonempty_string(data, "f4SessionId"), "f4SessionId"),
         "outputDir": str(data.get("outputDir") or "outputs/f3_demo").strip(),
         "writebackToF2": data.get("writebackToF2", False),
+        "internalToken": str(data.get("internalToken") or "").strip(),
         "requestKey": data.get("requestKey"),
         "modelMode": str(data.get("modelMode") or "REAL").strip().upper(),
         "timeoutSeconds": data.get("timeoutSeconds", 3),
@@ -593,7 +594,11 @@ def writeback_to_f2(config: Dict[str, Any], run_dir: str | Path,
         raise ValueError("配置 versionId 与本地结果不一致")
 
     url = f"{config['f2Url'].rstrip('/')}/api/platform/lessons/{lesson_id}/simulations"
-    response = session.post(url, json={"sessionRecord": record, "summaryMarkdown": summary}, timeout=DEFAULT_TIMEOUT)
+    headers = {}
+    if config.get("internalToken"):
+        headers["X-Platform-Internal-Token"] = config["internalToken"]
+    response = session.post(url, json={"sessionRecord": record, "summaryMarkdown": summary},
+                            headers=headers, timeout=DEFAULT_TIMEOUT)
     if response.status_code not in (200, 201):
         raise RuntimeError(f"模拟已完成、F2 保存失败，可重试回写: HTTP {response.status_code} {response.text[:1000]}")
     data = response.json()

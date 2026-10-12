@@ -3,6 +3,8 @@ package com.zone.lesoongen.platform;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.UUID;
+import java.util.List;
+import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
@@ -18,19 +20,26 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
+import com.zone.lesoongen.auth.PlatformAccessService;
+import tools.jackson.databind.ObjectMapper;
 
 /** Same-origin workbench gateway. F4 owns its sessions and mutation rules. */
 @RestController
 @RequestMapping("/api/platform/f4")
 public class PlatformF4WorkbenchController {
     private final RestClient client;
+    private final PlatformAccessService access;
+    private final ObjectMapper mapper;
 
     public PlatformF4WorkbenchController(
-            @Value("${platform.f4.base-url:http://127.0.0.1:8000}") String baseUrl) {
+            @Value("${platform.f4.base-url:http://127.0.0.1:8000}") String baseUrl,
+            PlatformAccessService access, ObjectMapper mapper) {
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(Duration.ofSeconds(5));
         factory.setReadTimeout(Duration.ofSeconds(180));
         client = RestClient.builder().baseUrl(baseUrl).requestFactory(factory).build();
+        this.access = access;
+        this.mapper = mapper;
     }
 
     @GetMapping("/health")
@@ -43,11 +52,33 @@ public class PlatformF4WorkbenchController {
     public ResponseEntity<byte[]> capabilities() { return forward(HttpMethod.GET, "/capabilities", null); }
 
     @GetMapping("/sessions")
-    public ResponseEntity<byte[]> sessions() { return forward(HttpMethod.GET, "/sessions", null); }
+    public ResponseEntity<byte[]> sessions() {
+        ResponseEntity<byte[]> upstream = forward(HttpMethod.GET, "/sessions", null);
+        if (!upstream.getStatusCode().is2xxSuccessful() || upstream.getBody() == null) return upstream;
+        try {
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> all = mapper.readValue(upstream.getBody(), List.class);
+            List<Map<String, Object>> visible = all.stream()
+                    .filter(item -> item.get("id") != null)
+                    .filter(item -> access.ownsNavigationSession(String.valueOf(item.get("id"))))
+                    .toList();
+            return ResponseEntity.ok().contentType(MediaType.APPLICATION_JSON)
+                    .header(HttpHeaders.CACHE_CONTROL, "no-store")
+                    .body(mapper.writeValueAsBytes(visible));
+        } catch (Exception error) {
+            String detail = "{\"code\":\"F4_SESSION_LIST_INVALID\",\"detail\":\"F4 会话列表格式不正确\"}";
+            return ResponseEntity.status(502).contentType(MediaType.APPLICATION_JSON)
+                    .header(HttpHeaders.CACHE_CONTROL, "no-store")
+                    .body(detail.getBytes(StandardCharsets.UTF_8));
+        }
+    }
 
     @PostMapping("/sessions")
     public ResponseEntity<byte[]> create(@RequestBody byte[] body) {
-        return forward(HttpMethod.POST, "/sessions", body);
+        String detail = "{\"code\":\"USE_PLATFORM_NAVIGATION_BRIDGE\",\"detail\":\"请从已选教案版本创建协同共析会话\"}";
+        return ResponseEntity.status(409).contentType(MediaType.APPLICATION_JSON)
+                .header(HttpHeaders.CACHE_CONTROL, "no-store")
+                .body(detail.getBytes(StandardCharsets.UTF_8));
     }
 
     @GetMapping("/sessions/{sessionId}/current-state")

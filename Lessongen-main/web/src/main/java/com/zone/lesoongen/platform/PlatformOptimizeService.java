@@ -98,16 +98,18 @@ public class PlatformOptimizeService {
                 lessonId, jobId).stream().findFirst().orElseThrow(() -> AppException.notFound("教案优化任务"));
     }
 
-    public List<History> history() {
+    public List<History> history(String ownerUserId) {
         return db.query("""
                 SELECT l.job_id, l.lesson_id, p.title, l.source_version_id, l.saved_version_id,
                        j.status, l.created_at
                 FROM platform_optimize_job_link l
                 JOIN platform_lesson p ON p.id = l.lesson_id
                 JOIN lesson_job j ON j.id = l.job_id
+                WHERE p.owner_user_id = ?
                 ORDER BY l.created_at DESC, l.job_id DESC LIMIT 100
                 """, (rs, i) -> new History(rs.getString(1), rs.getString(2), rs.getString(3),
-                rs.getString(4), rs.getString(5), rs.getString(6), rs.getTimestamp(7).toInstant()));
+                rs.getString(4), rs.getString(5), rs.getString(6), rs.getTimestamp(7).toInstant()),
+                ownerUserId);
     }
 
     @Transactional

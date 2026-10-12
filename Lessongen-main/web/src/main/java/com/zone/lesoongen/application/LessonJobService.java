@@ -24,6 +24,7 @@ import org.springframework.web.multipart.MultipartFile;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
 import com.zone.lesoongen.api.dto.LessonRequests;
+import com.zone.lesoongen.auth.CurrentUserService;
 import com.zone.lesoongen.api.dto.LessonResponses;
 import com.zone.lesoongen.application.storage.StoragePort;
 import com.zone.lesoongen.application.storage.StoredObject;
@@ -55,10 +56,12 @@ public class LessonJobService {
     private final AppProperties properties;
     private final ObjectMapper mapper;
     private final Clock clock;
+    private final CurrentUserService currentUser;
 
     public LessonJobService(LessonJobRepository jobs, LessonSourceFileRepository sources,
             LessonArtifactRepository artifacts, StoragePort storage, JobEventService events,
-            AppProperties properties, ObjectMapper mapper, Clock clock) {
+            AppProperties properties, ObjectMapper mapper, Clock clock,
+            CurrentUserService currentUser) {
         this.jobs = jobs;
         this.sources = sources;
         this.artifacts = artifacts;
@@ -69,6 +72,7 @@ public class LessonJobService {
         // preserves one JSON contract across persistence, HTTP, and idempotency hashing.
         this.mapper = mapper;
         this.clock = clock;
+        this.currentUser = currentUser;
     }
 
     @Transactional
@@ -86,6 +90,7 @@ public class LessonJobService {
         LessonJob job = new LessonJob(id, JobMode.GENERATE, clean(input.subject()),
                 clean(input.grade()), clean(input.topic()), value(input.durationMinutes(), 45),
                 snapshot, hash, idempotencyKey, blankToNull(input.retryOfJobId()), clock);
+        job.assignOwner(currentUser.require().id());
         jobs.save(job);
         events.record(job, "job.queued", "生成任务已进入队列", null);
         return accepted(job);
@@ -108,6 +113,7 @@ public class LessonJobService {
         LessonJob job = new LessonJob(id, JobMode.OPTIMIZE, clean(input.subject()),
                 clean(input.grade()), clean(input.topic()), value(input.durationMinutes(), 45),
                 snapshot, hash, idempotencyKey, blankToNull(input.retryOfJobId()), clock);
+        job.assignOwner(currentUser.require().id());
         jobs.save(job);
         String key = "jobs/" + id + "/input/original.docx";
         try (InputStream stream = document.getInputStream()) {
@@ -130,21 +136,23 @@ public class LessonJobService {
 
     @Transactional(readOnly = true)
     public LessonJob get(String jobId) {
-        return jobs.findById(jobId).orElseThrow(() -> AppException.notFound("任务"));
+        return jobs.findByIdAndOwnerId(jobId, currentUser.require().id())
+                .orElseThrow(() -> AppException.notFound("任务"));
     }
 
     @Transactional(readOnly = true)
     public LessonResponses.JobPage list(int page, int size, JobMode mode, JobStatus status) {
         PageRequest request = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        String ownerId = currentUser.require().id();
         Page<LessonJobSummaryView> result;
         if (mode != null && status != null) {
-            result = jobs.findProjectedByModeAndStatus(mode, status, request);
+            result = jobs.findProjectedByOwnerIdAndModeAndStatus(ownerId, mode, status, request);
         } else if (mode != null) {
-            result = jobs.findProjectedByMode(mode, request);
+            result = jobs.findProjectedByOwnerIdAndMode(ownerId, mode, request);
         } else if (status != null) {
-            result = jobs.findProjectedByStatus(status, request);
+            result = jobs.findProjectedByOwnerIdAndStatus(ownerId, status, request);
         } else {
-            result = jobs.findAllProjectedBy(request);
+            result = jobs.findProjectedByOwnerId(ownerId, request);
         }
         return new LessonResponses.JobPage(result.getContent().stream().map(this::summary).toList(),
                 result.getNumber(), result.getSize(), result.getTotalElements(),
@@ -183,7 +191,7 @@ public class LessonJobService {
     }
 
     private Optional<LessonJob> idempotent(String key, String requestHash) {
-        LessonJob existing = jobs.findByIdempotencyKey(key).orElse(null);
+        LessonJob existing = jobs.findByIdempotencyKeyAndOwnerId(key, currentUser.require().id()).orElse(null);
         if (existing == null) {
             return Optional.empty();
         }

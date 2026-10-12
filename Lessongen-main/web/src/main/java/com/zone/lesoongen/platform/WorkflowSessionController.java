@@ -33,61 +33,10 @@ public class WorkflowSessionController {
     public Map create(
             @RequestBody Map body
     ){
-
-
-        String subject =
-                String.valueOf(body.get("subject"));
-
-
-        String grade =
-                String.valueOf(body.get("grade"));
-
-
-        String topic =
-                String.valueOf(body.get("topic"));
-
-
-        String content =
-                String.valueOf(body.get("content"));
-
-
-
-        Map result =
-                service.createSession(
-                        subject,
-                        grade,
-                        topic,
-                        content
-                );
-
-
-
-        Map session =
-                (Map) result.get("session");
-
-
-        String sessionId =
-                String.valueOf(
-                        session.get("id")
-                );
-
-
-
-        // 暂时保存F4 session
-        store.save(
-                "demo",
-                sessionId
-        );
-
-
-
-        result.put(
-                "native_session_id",
-                sessionId
-        );
-
-
-        return result;
+        throw new com.zone.lesoongen.application.AppException(
+                org.springframework.http.HttpStatus.GONE,
+                "LEGACY_WORKFLOW_ENDPOINT_DISABLED",
+                "旧工作流会话入口已停用，请从工作流页面选择教案后进入对应功能");
 
     }
 

@@ -1,6 +1,8 @@
 import axios from "axios";
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
+import { useDraftStore } from "./draft";
+import { useWorkflowStore } from "./workflow";
 
 export interface AuthUser {
   id: string;
@@ -15,6 +17,13 @@ export const useAuthStore = defineStore("auth", () => {
   const initialized = ref(false);
   const loading = ref(false);
 
+  function adoptUser(next: AuthUser) {
+    const previous = window.localStorage.getItem("platform-auth-user-id");
+    if (previous && previous !== next.id) clearPrivateClientState();
+    window.localStorage.setItem("platform-auth-user-id", next.id);
+    user.value = next;
+  }
+
   async function prepareCsrf() {
     await axios.get("/api/auth/csrf");
   }
@@ -23,7 +32,7 @@ export const useAuthStore = defineStore("auth", () => {
     if (initialized.value) return;
     try {
       await prepareCsrf();
-      user.value = (await axios.get<AuthUser>("/api/auth/me")).data;
+      adoptUser((await axios.get<AuthUser>("/api/auth/me")).data);
     } catch {
       user.value = null;
     } finally {
@@ -34,7 +43,7 @@ export const useAuthStore = defineStore("auth", () => {
   async function login(username: string, password: string) {
     loading.value = true;
     try {
-      user.value = (await axios.post<AuthUser>("/api/auth/login", { username, password })).data;
+      adoptUser((await axios.post<AuthUser>("/api/auth/login", { username, password })).data);
       await prepareCsrf();
     } finally {
       loading.value = false;
@@ -57,6 +66,8 @@ export const useAuthStore = defineStore("auth", () => {
       await axios.post("/api/auth/logout");
     } finally {
       user.value = null;
+      window.localStorage.removeItem("platform-auth-user-id");
+      clearPrivateClientState();
       initialized.value = true;
     }
   }
@@ -72,3 +83,27 @@ export const useAuthStore = defineStore("auth", () => {
     logout,
   };
 });
+
+function clearPrivateClientState() {
+  const privatePrefixes = [
+    "platform-active-workflow-", "platform-custom-workflows-",
+    "platform-selected-workflow-", "platform-generated-lesson-",
+    "platform.f4.", "platform.workflow.f4.",
+    "f1-active-annotation:", "f1-batch-review-",
+  ];
+  const keys = Array.from({ length: window.localStorage.length }, (_, index) =>
+    window.localStorage.key(index)).filter((key): key is string => Boolean(key));
+  keys.filter(key => privatePrefixes.some(prefix => key.startsWith(prefix)))
+    .forEach(key => window.localStorage.removeItem(key));
+
+  const privateSessionPrefixes = ["lesoongen.", "f2-optimize-settings-v2:"];
+  const sessionKeys = Array.from({ length: window.sessionStorage.length }, (_, index) =>
+    window.sessionStorage.key(index)).filter((key): key is string => Boolean(key));
+  sessionKeys.filter(key => privateSessionPrefixes.some(prefix => key.startsWith(prefix)))
+    .forEach(key => window.sessionStorage.removeItem(key));
+
+  // Pinia stores survive route changes. Reset them as well as browser storage so a
+  // logout/login in the same tab cannot expose the previous account's local state.
+  useWorkflowStore().$reset();
+  useDraftStore().$reset();
+}
