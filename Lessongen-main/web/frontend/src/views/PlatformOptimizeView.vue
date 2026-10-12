@@ -70,7 +70,27 @@ const detail = ref<LessonDetail | null>(null);
 const error = ref("");
 const busy = ref(false);
 const loading = ref(false);
-const requestKey = ref(crypto.randomUUID());
+function createRequestKey(): string {
+  const webCrypto = globalThis.crypto;
+
+  if (webCrypto && typeof webCrypto.randomUUID === "function") {
+    return webCrypto.randomUUID();
+  }
+
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(
+    /[xy]/g,
+    (character) => {
+      const randomValue = Math.floor(Math.random() * 16);
+      const value =
+        character === "x"
+          ? randomValue
+          : (randomValue & 0x3) | 0x8;
+
+      return value.toString(16);
+    },
+  );
+}
+const requestKey = ref(createRequestKey());
 const previous = ref<OptimizeHistory[]>([]);
 const subject = ref("");
 const grade = ref("");

@@ -7,6 +7,27 @@ import LessonSelectorBar, { type LessonOption, type VersionOption } from "../com
 import { bridgeRequest } from "../features/navigation/bridge";
 import { useWorkflowStore } from "../stores/workflow";
 
+function createRequestKey(): string {
+  const webCrypto = globalThis.crypto;
+
+  if (webCrypto && typeof webCrypto.randomUUID === "function") {
+    return webCrypto.randomUUID();
+  }
+
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(
+    /[xy]/g,
+    (character) => {
+      const randomValue = Math.floor(Math.random() * 16);
+      const value =
+        character === "x"
+          ? randomValue
+          : (randomValue & 0x3) | 0x8;
+
+      return value.toString(16);
+    },
+  );
+}
+
 const route = useRoute();
 const router = useRouter();
 const workflow = useWorkflowStore();
@@ -43,7 +64,8 @@ async function startNavigation(lesson: LessonOption, version: VersionOption) {
   busy.value = true;
   error.value = "";
   const storageKey = `platform.workflow.f4.${lesson.id}.${version.id}`;
-  const requestKey = window.localStorage.getItem(storageKey) || crypto.randomUUID();
+  const requestKey =
+  window.localStorage.getItem(storageKey) || createRequestKey();
   try {
     window.localStorage.setItem(storageKey, requestKey);
     const result = await bridgeRequest<{ sessionId: string }>(`/lessons/${encodeURIComponent(lesson.id)}/sessions`, {
