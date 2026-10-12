@@ -15,3 +15,6 @@ app:
   storage-root: ./target/test-storage
   scheduling-enabled: false
   engine-internal-token: test-token
+  security:
+    enabled: false
+    registration-enabled: true

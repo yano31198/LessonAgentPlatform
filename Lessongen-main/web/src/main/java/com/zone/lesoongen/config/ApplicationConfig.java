@@ -14,7 +14,7 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 @Configuration
 @EnableScheduling
-@EnableConfigurationProperties(AppProperties.class)
+@EnableConfigurationProperties({AppProperties.class, PlatformSecurityProperties.class})
 public class ApplicationConfig {
 
     @Bean
@@ -42,9 +42,9 @@ public class ApplicationConfig {
                 registry.addMapping("/api/**")
                         .allowedOrigins(properties.frontendOrigin())
                         .allowedMethods("GET", "POST", "OPTIONS")
-                        .allowedHeaders("Content-Type", "Idempotency-Key", "Last-Event-ID")
+                        .allowedHeaders("Content-Type", "Idempotency-Key", "Last-Event-ID", "X-XSRF-TOKEN")
                         .exposedHeaders("Content-Disposition", "Digest", "X-Correlation-ID")
-                        .allowCredentials(false);
+                        .allowCredentials(true);
             }
         };
     }

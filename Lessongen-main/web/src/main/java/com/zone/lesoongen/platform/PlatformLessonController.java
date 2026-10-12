@@ -18,16 +18,20 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
+import com.zone.lesoongen.auth.PlatformAccessService;
 
 @RestController
 @RequestMapping("/api/platform/lessons")
 public class PlatformLessonController {
     private final PlatformLessonService lessons;
     private final PlatformLessonDocumentService documents;
+    private final PlatformAccessService access;
 
-    public PlatformLessonController(PlatformLessonService lessons, PlatformLessonDocumentService documents) {
+    public PlatformLessonController(PlatformLessonService lessons,
+            PlatformLessonDocumentService documents, PlatformAccessService access) {
         this.lessons = lessons;
         this.documents = documents;
+        this.access = access;
     }
 
     public record CreateLesson(
@@ -58,23 +62,26 @@ public class PlatformLessonController {
 
     @GetMapping
     public List<LessonSummary> list() {
-        return lessons.list();
+        return lessons.listForOwner(access.currentUserId());
     }
 
     @GetMapping("/{lessonId}")
     public LessonDetail detail(@PathVariable String lessonId) {
+        access.requireOwnedLesson(lessonId);
         return lessons.detail(lessonId);
     }
 
     @GetMapping("/{lessonId}/versions/{versionId}/document")
     public PlatformLessonDocumentService.VersionDocument document(
             @PathVariable String lessonId, @PathVariable String versionId) {
+        access.requireOwnedLesson(lessonId);
         return documents.get(lessonId, versionId);
     }
 
     @PostMapping("/{lessonId}/versions")
     public ResponseEntity<LessonDetail> addVersion(@PathVariable String lessonId,
             @Valid @RequestBody NewVersion request) {
+        access.requireOwnedLesson(lessonId);
         return ResponseEntity.status(HttpStatus.CREATED).body(lessons.addVersion(lessonId, request));
     }
 }

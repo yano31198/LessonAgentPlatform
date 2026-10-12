@@ -6,6 +6,8 @@ export default createRouter({
   history: createWebHistory(),
   scrollBehavior: (_to, _from, saved) => saved || { top: 0 },
   routes: [
+    { path: "/login", name: "login", component: () => import("./views/LoginView.vue"), meta: { public: true } },
+    { path: "/register", name: "register", component: () => import("./views/LoginView.vue"), meta: { public: true } },
     {
       path: "/",
       component: AppShell,

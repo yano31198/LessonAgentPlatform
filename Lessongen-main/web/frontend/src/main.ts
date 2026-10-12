@@ -1,34 +1,28 @@
 import { createApp } from "vue";
 import { createPinia } from "pinia";
+import axios from "axios";
 import "./styles/main.css";
 import App from "./App.vue";
 import router from "./router";
+import { useAuthStore } from "./stores/auth";
 
-function installRandomUuidFallback(): void {
-  const webCrypto = globalThis.crypto;
+axios.defaults.withCredentials = true;
+axios.defaults.xsrfCookieName = "XSRF-TOKEN";
+axios.defaults.xsrfHeaderName = "X-XSRF-TOKEN";
 
-  if (!webCrypto || typeof webCrypto.randomUUID === "function") {
-    return;
+const pinia = createPinia();
+const auth = useAuthStore(pinia);
+
+router.beforeEach(async (to) => {
+  await auth.restore();
+  if (to.meta.public) {
+    if (auth.user && (to.name === "login" || to.name === "register")) return "/";
+    return true;
   }
+  if (!auth.user) {
+    return { name: "login", query: { redirect: to.fullPath } };
+  }
+  return true;
+});
 
-  Object.defineProperty(webCrypto, "randomUUID", {
-    configurable: true,
-    value: (): string =>
-      "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(
-        /[xy]/g,
-        (character) => {
-          const randomValue = Math.floor(Math.random() * 16);
-          const value =
-            character === "x"
-              ? randomValue
-              : (randomValue & 0x3) | 0x8;
-
-          return value.toString(16);
-        },
-      ),
-  });
-}
-
-installRandomUuidFallback();
-
-createApp(App).use(createPinia()).use(router).mount("#app");
+createApp(App).use(pinia).use(router).mount("#app");

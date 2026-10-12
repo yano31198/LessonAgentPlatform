@@ -1,12 +1,15 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { RouterLink, RouterView, useRoute } from "vue-router";
+import { RouterLink, RouterView, useRoute, useRouter } from "vue-router";
 import WorkflowProgressBar from "../components/WorkflowProgressBar.vue";
 import ConfirmDialog from "../components/ConfirmDialog.vue";
 import { useWorkflowStore } from "../stores/workflow";
+import { useAuthStore } from "../stores/auth";
 
 const route = useRoute();
+const router = useRouter();
 const workflow = useWorkflowStore();
+const auth = useAuthStore();
 const menuOpen = ref(false);
 const finishDialogOpen = ref(false);
 const active = computed(() => route.path);
@@ -39,6 +42,11 @@ function finishWorkflow() {
   workflow.clearRun();
   finishDialogOpen.value = false;
 }
+
+async function logout() {
+  await auth.logout();
+  await router.replace("/login");
+}
 </script>
 
 <template>
@@ -52,6 +60,9 @@ function finishWorkflow() {
         <button type="button" class="mobile-menu" :aria-expanded="menuOpen" aria-label="打开导航" @click="menuOpen = !menuOpen"><span/><span/><span/></button>
         <nav class="top-nav" :class="{ open: menuOpen }" aria-label="主导航">
           <RouterLink v-for="item in links" :key="item.path" :to="item.path" :class="{ active: item.match(active) }" :aria-current="item.match(active) ? 'page' : undefined" @click="menuOpen = false">{{ item.label }}</RouterLink>
+          <span class="user-divider" aria-hidden="true" />
+          <span class="user-name" :title="auth.user?.username">{{ auth.user?.displayName }}</span>
+          <button type="button" class="logout-button" @click="logout">退出</button>
         </nav>
       </div>
     </header>
@@ -88,5 +99,6 @@ function finishWorkflow() {
 .app-shell-v2{min-height:100vh;background:var(--color-bg)}.app-topbar{position:sticky;top:0;z-index:90;height:var(--header-height);border-bottom:1px solid var(--color-border);background:rgba(255,255,255,.96);backdrop-filter:blur(12px)}.topbar-inner{width:min(var(--page-width),calc(100% - 40px));height:100%;display:flex;align-items:center;justify-content:space-between;margin:auto}.app-brand{display:flex;align-items:center;gap:12px;color:var(--color-text)}.brand-mark{display:grid;place-items:center;width:42px;height:42px;border-radius:8px;color:#fff;background:var(--color-primary);font-size:18px;font-weight:800}.app-brand strong,.app-brand small{display:block}.app-brand strong{font-size:20px;line-height:1.05}.app-brand small{margin-top:4px;color:var(--color-text-muted);font-size:12px}.top-nav{display:flex;align-items:center;gap:4px}.top-nav a{display:inline-flex;align-items:center;min-height:40px;padding:0 15px;border-radius:var(--radius-md);color:var(--color-text-secondary);font-size:14px;font-weight:650}.top-nav a:hover,.top-nav a.active{color:var(--color-primary);background:var(--color-primary-soft)}.mobile-menu{display:none;width:40px;height:40px;border:0;border-radius:var(--radius-md);background:var(--color-surface-soft)}.mobile-menu span{display:block;width:18px;height:2px;margin:4px auto;background:var(--color-text)}
 .resume-strip{width:min(var(--page-width),calc(100% - 40px));display:flex;align-items:center;justify-content:space-between;gap:18px;margin:14px auto 0;padding:10px 14px;border:1px solid #ead49e;border-radius:var(--radius-md);background:var(--color-attention-soft)}.resume-copy{display:flex;align-items:center;min-width:0;gap:12px;white-space:nowrap}.resume-copy span{color:var(--color-attention);font-size:12px}.resume-copy strong{min-width:0;overflow:hidden;text-overflow:ellipsis;color:var(--color-text);font-size:13px}.resume-actions{display:flex;align-items:center;flex:none;gap:10px}.resume-actions a,.resume-end{min-height:36px;display:inline-flex;align-items:center;justify-content:center;padding:0 13px;border-radius:var(--radius-sm);font-size:12px;font-weight:700;white-space:nowrap}.resume-actions a{color:#fff;background:var(--color-primary)}.resume-end{border:1px solid #dfc27b;color:var(--color-attention);background:#fff;cursor:pointer}.resume-end:hover{background:#fffaf0}
 .app-main{width:min(var(--page-width),calc(100% - 40px));min-height:calc(100vh - 132px);margin:0 auto;padding:34px 0 72px}.app-footer-v2{display:flex;justify-content:space-between;gap:20px;padding:20px max(20px,calc((100vw - var(--page-width))/2));border-top:1px solid var(--color-border);color:var(--color-text-muted);background:#fff;font-size:12px}
-@media(max-width:700px){.mobile-menu{display:block}.top-nav{position:absolute;left:20px;right:20px;top:60px;display:none;align-items:stretch;flex-direction:column;padding:8px;border:1px solid var(--color-border);border-radius:var(--radius-md);background:#fff;box-shadow:var(--shadow-subtle)}.top-nav.open{display:flex}.top-nav a{width:100%}.resume-strip{align-items:stretch;flex-direction:column}.resume-copy{align-items:flex-start;flex-direction:column;gap:3px;white-space:normal}.resume-actions{justify-content:flex-end}.app-main{width:calc(100% - 28px);padding-top:24px}.app-footer-v2{flex-direction:column}}
+.user-divider{width:1px;height:24px;margin:0 5px;background:var(--color-border)}.user-name{max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--color-text);font-size:13px;font-weight:700}.logout-button{min-height:34px;padding:0 10px;border:1px solid var(--color-border);border-radius:var(--radius-sm);color:var(--color-text-secondary);background:#fff;cursor:pointer}.logout-button:hover{color:var(--color-primary);border-color:var(--color-primary)}
+@media(max-width:700px){.mobile-menu{display:block}.top-nav{position:absolute;left:20px;right:20px;top:60px;display:none;align-items:stretch;flex-direction:column;padding:8px;border:1px solid var(--color-border);border-radius:var(--radius-md);background:#fff;box-shadow:var(--shadow-subtle)}.top-nav.open{display:flex}.top-nav a{width:100%}.user-divider{width:100%;height:1px;margin:5px 0}.user-name{max-width:none;padding:8px 15px}.logout-button{width:100%;min-height:40px}.resume-strip{align-items:stretch;flex-direction:column}.resume-copy{align-items:flex-start;flex-direction:column;gap:3px;white-space:normal}.resume-actions{justify-content:flex-end}.app-main{width:calc(100% - 28px);padding-top:24px}.app-footer-v2{flex-direction:column}}
 </style>
