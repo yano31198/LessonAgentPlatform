@@ -3,6 +3,7 @@ import { defineStore } from "pinia";
 import { computed, ref } from "vue";
 import { useDraftStore } from "./draft";
 import { useWorkflowStore } from "./workflow";
+import { clearCsrfToken, setCsrfToken } from "../api/csrf";
 
 export interface AuthUser {
   id: string;
@@ -24,9 +25,23 @@ export const useAuthStore = defineStore("auth", () => {
     user.value = next;
   }
 
-  async function prepareCsrf() {
-    await axios.get("/api/auth/csrf");
-  }
+  interface CsrfResponse {
+  headerName: string;
+  parameterName: string;
+  token: string;
+}
+
+async function prepareCsrf() {
+  const response = await axios.get<CsrfResponse>("/api/auth/csrf");
+
+  setCsrfToken(
+    response.data.headerName,
+    response.data.token,
+  );
+
+  axios.defaults.headers.common[response.data.headerName] =
+    response.data.token;
+}
 
   async function restore() {
     if (initialized.value) return;
@@ -65,6 +80,8 @@ export const useAuthStore = defineStore("auth", () => {
     try {
       await axios.post("/api/auth/logout");
     } finally {
+      clearCsrfToken();
+      delete axios.defaults.headers.common["X-XSRF-TOKEN"];
       user.value = null;
       window.localStorage.removeItem("platform-auth-user-id");
       clearPrivateClientState();

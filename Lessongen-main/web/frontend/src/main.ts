@@ -5,10 +5,19 @@ import "./styles/main.css";
 import App from "./App.vue";
 import router from "./router";
 import { useAuthStore } from "./stores/auth";
+import { csrfHeaders } from "./api/csrf";
 
 axios.defaults.withCredentials = true;
-axios.defaults.xsrfCookieName = "XSRF-TOKEN";
-axios.defaults.xsrfHeaderName = "X-XSRF-TOKEN";
+axios.defaults.withXSRFToken = false;
+axios.interceptors.request.use((config) => {
+  const headers = csrfHeaders();
+
+  Object.entries(headers).forEach(([name, value]) => {
+    config.headers.set(name, value);
+  });
+
+  return config;
+});
 
 const pinia = createPinia();
 const auth = useAuthStore(pinia);
