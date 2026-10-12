@@ -89,6 +89,15 @@ async function prepareCsrf() {
     }
   }
 
+  async function updateProfile(displayName: string) {
+    const next = (await axios.patch<AuthUser>("/api/auth/me", { displayName })).data;
+    adoptUser(next);
+  }
+
+  async function changePassword(currentPassword: string, newPassword: string) {
+    await axios.post("/api/auth/password", { currentPassword, newPassword });
+  }
+
   return {
     user,
     initialized,
@@ -98,6 +107,8 @@ async function prepareCsrf() {
     login,
     register,
     logout,
+    updateProfile,
+    changePassword,
   };
 });
 

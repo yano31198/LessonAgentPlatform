@@ -31,6 +31,8 @@ router.beforeEach(async (to) => {
   if (!auth.user) {
     return { name: "login", query: { redirect: to.fullPath } };
   }
+  if (to.meta.admin && auth.user.role !== "ADMIN") return "/";
+  
   return true;
 });
 

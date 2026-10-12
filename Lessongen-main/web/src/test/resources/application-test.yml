@@ -18,3 +18,5 @@ app:
   security:
     enabled: false
     registration-enabled: true
+    max-login-attempts: 3
+    login-lock-minutes: 15

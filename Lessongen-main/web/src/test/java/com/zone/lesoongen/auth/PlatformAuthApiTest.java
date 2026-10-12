@@ -3,6 +3,7 @@ package com.zone.lesoongen.auth;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -162,6 +163,86 @@ class PlatformAuthApiTest {
                 .andExpect(status().isNotFound());
     }
 
+    @Test
+    void userCanUpdateProfileAndChangePassword() throws Exception {
+        String username = "profile_" + UUID.randomUUID().toString().substring(0, 8);
+        register(username, "原显示名称");
+        MockHttpSession session = login(username);
+
+        mvc.perform(patch("/api/auth/me").session(session).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(Map.of("displayName", "新显示名称"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.displayName").value("新显示名称"));
+
+        mvc.perform(post("/api/auth/password").session(session).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(Map.of(
+                                "currentPassword", "SecurePass123!",
+                                "newPassword", "ChangedPass456!"))))
+                .andExpect(status().isNoContent());
+
+        loginExpecting(username, "SecurePass123!", 401);
+        loginExpecting(username, "ChangedPass456!", 200);
+    }
+
+    @Test
+    void adminCanListAndDisableUsersButCannotDisableSelf() throws Exception {
+        String suffix = UUID.randomUUID().toString().substring(0, 8);
+        String adminName = "admin_" + suffix;
+        String memberName = "member_" + suffix;
+        register(adminName, "管理员");
+        register(memberName, "普通用户");
+        db.update("UPDATE platform_user SET role = 'ADMIN' WHERE username = ?", adminName);
+
+        MockHttpSession adminSession = login(adminName);
+        MockHttpSession memberSession = login(memberName);
+        PlatformUser admin = users.findByUsername(adminName).orElseThrow();
+        PlatformUser member = users.findByUsername(memberName).orElseThrow();
+
+        mvc.perform(get("/api/admin/users").session(adminSession))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.username == '" + memberName + "')]").exists());
+        mvc.perform(get("/api/admin/users").session(memberSession))
+                .andExpect(status().isForbidden());
+
+        mvc.perform(patch("/api/admin/users/" + member.id() + "/status")
+                        .session(adminSession).with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"DISABLED\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("DISABLED"));
+        mvc.perform(get("/api/auth/me").session(memberSession))
+                .andExpect(status().isUnauthorized());
+
+        mvc.perform(patch("/api/admin/users/" + admin.id() + "/status")
+                        .session(adminSession).with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"DISABLED\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("ADMIN_SELF_DISABLE"));
+    }
+
+    @Test
+    void repeatedLoginFailuresTemporarilyLockAccountAndAreAudited() throws Exception {
+        String username = "locked_" + UUID.randomUUID().toString().substring(0, 8);
+        register(username, "锁定测试");
+
+        loginExpecting(username, "WrongPassword1!", 401);
+        loginExpecting(username, "WrongPassword2!", 401);
+        loginExpecting(username, "WrongPassword3!", 401);
+        mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(Map.of(
+                                "username", username, "password", "SecurePass123!"))))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.code").value("LOGIN_TEMPORARILY_LOCKED"));
+
+        PlatformUser user = users.findByUsername(username).orElseThrow();
+        org.assertj.core.api.Assertions.assertThat(user.lockedUntil()).isNotNull();
+        Integer attempts = db.queryForObject("""
+                SELECT COUNT(*) FROM platform_login_audit WHERE username_attempted = ?
+                """, Integer.class, username);
+        org.assertj.core.api.Assertions.assertThat(attempts).isGreaterThanOrEqualTo(4);
+    }
+
     private void register(String username, String displayName) throws Exception {
         mvc.perform(post("/api/auth/register").contentType(MediaType.APPLICATION_JSON)
                         .content(mapper.writeValueAsString(Map.of(
@@ -180,5 +261,12 @@ class PlatformAuthApiTest {
                 .andExpect(jsonPath("$.username").value(username))
                 .andReturn();
         return (MockHttpSession) result.getRequest().getSession(false);
+    }
+
+    private void loginExpecting(String username, String password, int statusCode) throws Exception {
+        mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(Map.of(
+                                "username", username, "password", password))))
+                .andExpect(status().is(statusCode));
     }
 }

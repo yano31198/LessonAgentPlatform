@@ -16,10 +16,12 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.authentication.AnonymousAuthenticationFilter;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 
 import jakarta.servlet.http.HttpServletResponse;
 
 @Configuration
+@EnableMethodSecurity
 public class PlatformSecurityConfig {
 
     @Bean
@@ -36,14 +38,17 @@ public class PlatformSecurityConfig {
 
     @Bean
     @ConditionalOnProperty(prefix = "app.security", name = "enabled", havingValue = "true", matchIfMissing = true)
-    SecurityFilterChain secured(HttpSecurity http, InternalServiceTokenFilter internalService) throws Exception {
+    SecurityFilterChain secured(HttpSecurity http, InternalServiceTokenFilter internalService,
+            PlatformUserRepository userRepository) throws Exception {
         CookieCsrfTokenRepository csrf = CookieCsrfTokenRepository.withHttpOnlyFalse();
         csrf.setCookiePath("/");
         return http
                 .addFilterBefore(internalService, AnonymousAuthenticationFilter.class)
+                .addFilterAfter(new ActivePlatformUserFilter(userRepository), AnonymousAuthenticationFilter.class)
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/actuator/health", "/api/auth/register",
                                 "/api/auth/login", "/api/auth/csrf").permitAll()
+                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/**").hasAnyRole("USER", "ADMIN", "SERVICE")
                         .anyRequest().permitAll())
                 .csrf(config -> config
