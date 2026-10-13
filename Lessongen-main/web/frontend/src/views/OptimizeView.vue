@@ -6,6 +6,7 @@ import { useDraftStore } from "../stores/draft";
 import LessonFields from "../components/LessonFields.vue";
 import ChipInput from "../components/ChipInput.vue";
 import FormWayfinder from "../components/FormWayfinder.vue";
+import { sha256Hex } from "../utils/sha256";
 
 const router = useRouter();
 const drafts = useDraftStore();
@@ -149,14 +150,9 @@ async function choose(candidate?: File) {
       fileError.value = "文件不是有效的 OOXML Word 文档。";
       return;
     }
-    const hash = await crypto.subtle.digest(
-      "SHA-256",
-      await candidate.arrayBuffer(),
-    );
+    const calculatedDigest = await sha256Hex(await candidate.arrayBuffer());
     if (currentSelection !== selection) return;
-    digest.value = Array.from(new Uint8Array(hash))
-      .map((value) => value.toString(16).padStart(2, "0"))
-      .join("");
+    digest.value = calculatedDigest;
     file.value = candidate;
   } catch {
     if (currentSelection === selection)

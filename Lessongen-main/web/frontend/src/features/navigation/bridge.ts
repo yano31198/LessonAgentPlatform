@@ -1,3 +1,4 @@
+import { sha256Hex } from "../../utils/sha256";
 import { csrfHeaders } from "../../api/csrf";
 
 export interface BindingContext {
@@ -39,6 +40,5 @@ export async function bridgeRequest<T>(path: string, body?: unknown): Promise<T>
 }
 
 export async function contentHash(content: string): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(content));
-  return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("");
+  return sha256Hex(content);
 }
