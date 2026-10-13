@@ -19,6 +19,8 @@ import jakarta.persistence.LockModeType;
 
 public interface LessonJobRepository extends JpaRepository<LessonJob, String> {
     Optional<LessonJob> findByIdempotencyKey(String idempotencyKey);
+    Optional<LessonJob> findByIdempotencyKeyAndOwnerId(String idempotencyKey, String ownerId);
+    Optional<LessonJob> findByIdAndOwnerId(String id, String ownerId);
 
     long countByStatusIn(Collection<JobStatus> statuses);
 
@@ -32,6 +34,13 @@ public interface LessonJobRepository extends JpaRepository<LessonJob, String> {
     Page<LessonJobSummaryView> findProjectedByStatus(JobStatus status, Pageable pageable);
 
     Page<LessonJobSummaryView> findAllProjectedBy(Pageable pageable);
+    Page<LessonJobSummaryView> findProjectedByOwnerIdAndModeAndStatus(String ownerId,
+            JobMode mode, JobStatus status, Pageable pageable);
+    Page<LessonJobSummaryView> findProjectedByOwnerIdAndMode(String ownerId,
+            JobMode mode, Pageable pageable);
+    Page<LessonJobSummaryView> findProjectedByOwnerIdAndStatus(String ownerId,
+            JobStatus status, Pageable pageable);
+    Page<LessonJobSummaryView> findProjectedByOwnerId(String ownerId, Pageable pageable);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select j from LessonJob j where j.id = (select min(j2.id) from LessonJob j2 where j2.status = :status)")

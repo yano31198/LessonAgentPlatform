@@ -1,3 +1,4 @@
+import { csrfHeaders } from "../../api/csrf";
 export const navigationBase = "/api/platform/f4";
 
 export class NavigationError extends Error {
@@ -12,7 +13,10 @@ export async function request<T>(path: string, body?: unknown): Promise<T> {
   try {
     const response = await fetch(navigationBase + path, {
       method: body === undefined ? "GET" : "POST",
-      headers: { "Accept": "application/json", ...(body === undefined ? {} : { "Content-Type": "application/json" }) },
+      headers: { "Accept": "application/json", ...(body === undefined ? {} : {
+        "Content-Type": "application/json", ...csrfHeaders(),
+      }) },
+      credentials: "same-origin",
       body: body === undefined ? undefined : JSON.stringify(body),
       signal: controller.signal,
     });

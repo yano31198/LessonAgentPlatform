@@ -25,6 +25,7 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 import com.zone.lesoongen.application.AppException;
 import com.zone.lesoongen.platform.PlatformSimulationLaunchController.LaunchRequest;
+import com.zone.lesoongen.config.AppProperties;
 import tools.jackson.databind.ObjectMapper;
 
 @Service
@@ -37,12 +38,13 @@ public class PlatformSimulationLaunchService {
     private final PlatformNavigationBridgeService navigation;
     private final ObjectMapper mapper;
     private final String python, script, f2Url, f3Url, f4Url;
+    private final String internalToken;
     private final RestClient f3;
     private static final List<String> ROLES = List.of("teacher", "assistant", "class_clown",
             "deep_thinker", "note_taker", "inquisitive_mind");
 
     public PlatformSimulationLaunchService(JdbcTemplate db, PlatformLessonService lessons,
-            PlatformNavigationBridgeService navigation, ObjectMapper mapper,
+            PlatformNavigationBridgeService navigation, ObjectMapper mapper, AppProperties properties,
             @Value("${platform.f3.python:${F3_PYTHON:python}}") String python,
             @Value("${platform.f3.runner-script:scripts/f3-runner/run_f3_demo.py}") String script,
             @Value("${platform.f3.base-url:http://127.0.0.1:8003}") String f3Url,
@@ -50,6 +52,7 @@ public class PlatformSimulationLaunchService {
             @Value("${platform.f2.self-url:http://127.0.0.1:8080}") String f2Url) {
         this.db = db; this.lessons = lessons; this.navigation = navigation; this.mapper = mapper;
         this.python = python; this.script = script; this.f3Url = f3Url; this.f4Url = f4Url; this.f2Url = f2Url;
+        this.internalToken = properties.engineInternalToken();
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(Duration.ofSeconds(5));
         factory.setReadTimeout(Duration.ofSeconds(60));
@@ -94,12 +97,16 @@ public class PlatformSimulationLaunchService {
         return value;
     }
 
-    public List<Launch> list() {
+    public List<Launch> list(String ownerUserId) {
         return db.query("""
-                SELECT launch_id, request_key, lesson_id, version_id, state, simulation_run_id,
-                       f3_session_id, f4_session_id, active_roles_json, timeout_seconds, message, created_at
-                FROM platform_simulation_launch ORDER BY created_at DESC, launch_id DESC LIMIT 100
-                """, (rs, row) -> launch(rs));
+                SELECT s.launch_id, s.request_key, s.lesson_id, s.version_id, s.state,
+                       s.simulation_run_id, s.f3_session_id, s.f4_session_id,
+                       s.active_roles_json, s.timeout_seconds, s.message, s.created_at
+                FROM platform_simulation_launch s
+                JOIN platform_lesson l ON l.id = s.lesson_id
+                WHERE l.owner_user_id = ?
+                ORDER BY s.created_at DESC, s.launch_id DESC LIMIT 100
+                """, (rs, row) -> launch(rs), ownerUserId);
     }
 
     @EventListener(ApplicationReadyEvent.class)
@@ -258,6 +265,7 @@ public class PlatformSimulationLaunchService {
             input.put("f3Url", f3Url);
             input.put("f2Url", f2Url);
             input.put("writebackToF2", true);
+            input.put("internalToken", internalToken);
             input.put("lessonId", launch.lessonId());
             input.put("versionId", launch.versionId());
             input.put("f4SessionId", started.sessionId());

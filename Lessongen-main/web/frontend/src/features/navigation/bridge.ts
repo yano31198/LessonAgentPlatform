@@ -1,3 +1,5 @@
+import { csrfHeaders } from "../../api/csrf";
+
 export interface BindingContext {
   lessonId: string | null; title: string | null; sourceVersionId: string | null;
   sourceVersionNumber: number | null; currentVersionId: string | null;
@@ -14,7 +16,10 @@ export async function bridgeRequest<T>(path: string, body?: unknown): Promise<T>
   try {
     const response = await fetch("/api/platform/navigation" + path, {
       method: body === undefined ? "GET" : "POST",
-      headers: { Accept: "application/json", ...(body === undefined ? {} : { "Content-Type": "application/json" }) },
+      headers: { Accept: "application/json", ...(body === undefined ? {} : {
+        "Content-Type": "application/json", ...csrfHeaders(),
+      }) },
+      credentials: "same-origin",
       body: body === undefined ? undefined : JSON.stringify(body), signal: controller.signal,
     });
     const text = await response.text();

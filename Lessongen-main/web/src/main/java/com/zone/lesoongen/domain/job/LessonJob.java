@@ -180,6 +180,13 @@ public class LessonJob {
         this.idempotencyKey = null;
     }
 
+    public void assignOwner(String ownerId) {
+        if (this.ownerId != null && !this.ownerId.equals(ownerId)) {
+            throw new IllegalStateException("job owner cannot be changed");
+        }
+        this.ownerId = ownerId;
+    }
+
     public String getId() { return id; }
     public JobMode getMode() { return mode; }
     public JobStatus getStatus() { return status; }
@@ -208,6 +215,7 @@ public class LessonJob {
     public String getErrorMessage() { return errorMessage; }
     public String getResultStorageKey() { return resultStorageKey; }
     public long getLastEngineEventSequence() { return lastEngineEventSequence; }
+    public String getOwnerId() { return ownerId; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getStartedAt() { return startedAt; }
     public Instant getFinishedAt() { return finishedAt; }

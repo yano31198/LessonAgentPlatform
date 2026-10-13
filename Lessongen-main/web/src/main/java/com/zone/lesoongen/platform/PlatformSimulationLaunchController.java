@@ -12,12 +12,15 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Size;
+import com.zone.lesoongen.auth.PlatformAccessService;
 
 @RestController
 @RequestMapping("/api/platform/simulation-launches")
 public class PlatformSimulationLaunchController {
     private final PlatformSimulationLaunchService launches;
-    public PlatformSimulationLaunchController(PlatformSimulationLaunchService launches) { this.launches = launches; }
+    private final PlatformAccessService access;
+    public PlatformSimulationLaunchController(PlatformSimulationLaunchService launches,
+            PlatformAccessService access) { this.launches = launches; this.access = access; }
 
     public record LaunchRequest(@NotBlank String lessonId, @NotBlank String versionId,
             @NotNull UUID requestKey, List<String> activeRoles,
@@ -27,12 +30,13 @@ public class PlatformSimulationLaunchController {
 
     @PostMapping
     public ResponseEntity<PlatformSimulationLaunchService.Launch> start(@Valid @RequestBody LaunchRequest request) {
+        access.requireOwnedLesson(request.lessonId());
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(launches.start(request));
     }
 
     @GetMapping
     public List<PlatformSimulationLaunchService.Launch> list() {
-        return launches.list();
+        return launches.list(access.currentUserId());
     }
 
     @GetMapping("/{launchId}")

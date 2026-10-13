@@ -18,6 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.zone.lesoongen.application.AppException;
+import com.zone.lesoongen.auth.CurrentUserService;
 import com.zone.lesoongen.domain.shared.Ulids;
 import com.zone.lesoongen.platform.PlatformLessonController.CreateLesson;
 import com.zone.lesoongen.platform.PlatformLessonController.LessonDetail;
@@ -29,10 +30,13 @@ import com.zone.lesoongen.platform.PlatformLessonController.NewVersion;
 public class PlatformLessonService {
     private final JdbcTemplate db;
     private final PlatformLessonDocumentService documents;
+    private final CurrentUserService currentUser;
 
-    public PlatformLessonService(JdbcTemplate db, PlatformLessonDocumentService documents) {
+    public PlatformLessonService(JdbcTemplate db, PlatformLessonDocumentService documents,
+            CurrentUserService currentUser) {
         this.db = db;
         this.documents = documents;
+        this.currentUser = currentUser;
     }
 
     @Transactional
@@ -63,21 +67,24 @@ public class PlatformLessonService {
         String versionId = Ulids.next(java.time.Clock.systemUTC());
         db.update("""
                 INSERT INTO platform_lesson
-                (id, title, subject, grade, topic, duration_minutes, current_version_id, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?)
-                """, lessonId, request.title().trim(), request.subject().trim(), request.grade().trim(),
-                request.topic().trim(), request.durationMinutes(), Timestamp.from(now), Timestamp.from(now));
+                (id, owner_user_id, title, subject, grade, topic, duration_minutes,
+                 current_version_id, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)
+                """, lessonId, currentUser.require().id(), request.title().trim(),
+                request.subject().trim(), request.grade().trim(), request.topic().trim(),
+                request.durationMinutes(), Timestamp.from(now), Timestamp.from(now));
         insertVersion(versionId, lessonId, null, 0, request.content(), sourceModule, now);
         documents.save(versionId, document, parseStatus, parserName, "1", warnings);
         db.update("UPDATE platform_lesson SET current_version_id = ? WHERE id = ?", versionId, lessonId);
         return detail(lessonId);
     }
 
-    public List<LessonSummary> list() {
+    public List<LessonSummary> listForOwner(String ownerUserId) {
         return db.query("""
                 SELECT id, title, subject, grade, topic, duration_minutes, current_version_id, updated_at
-                FROM platform_lesson ORDER BY updated_at DESC, id DESC LIMIT 100
-                """, (rs, row) -> summary(rs));
+                FROM platform_lesson WHERE owner_user_id = ?
+                ORDER BY updated_at DESC, id DESC LIMIT 100
+                """, (rs, row) -> summary(rs), ownerUserId);
     }
 
     public LessonDetail detail(String lessonId) {

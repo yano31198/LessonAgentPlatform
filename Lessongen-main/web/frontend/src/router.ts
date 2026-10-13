@@ -6,6 +6,8 @@ export default createRouter({
   history: createWebHistory(),
   scrollBehavior: (_to, _from, saved) => saved || { top: 0 },
   routes: [
+    { path: "/login", name: "login", component: () => import("./views/LoginView.vue"), meta: { public: true } },
+    { path: "/register", name: "register", component: () => import("./views/LoginView.vue"), meta: { public: true } },
     {
       path: "/",
       component: AppShell,
@@ -15,6 +17,8 @@ export default createRouter({
         { path: "lessons/:lessonId", name: "lesson-detail", component: () => import("./views/LessonSpaceView.vue") },
         { path: "workflows", name: "workflows", component: () => import("./views/WorkflowView.vue") },
         { path: "tasks", name: "task-history", component: () => import("./views/TaskHistoryView.vue") },
+        { path: "account", name: "account-settings", component: () => import("./views/AccountSettingsView.vue") },
+        { path: "admin/users", name: "admin-users", component: () => import("./views/AdminUsersView.vue"), meta: { admin: true } },
         { path: "review", name: "review", component: () => import("./views/FeatureEntryView.vue"), props: { feature: "F1" } },
         { path: "review/batch", name: "review-batch", component: () => import("./views/BatchReviewView.vue") },
         { path: "lessons/:lessonId/annotate", name: "lesson-annotate", component: () => import("./views/AnnotationView.vue") },

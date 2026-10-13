@@ -17,6 +17,8 @@ const titles: Record<string, string> = {
   "navigation-entry": "协同共析",
   "f4-navigation-workbench": "协同共析",
   job: "任务详情",
+  login: "登录",
+  register: "注册",
 };
 function updateTitle() {
   document.title = `${titles[String(route.name)] || "工作台"} · AI 教学设计平台`;

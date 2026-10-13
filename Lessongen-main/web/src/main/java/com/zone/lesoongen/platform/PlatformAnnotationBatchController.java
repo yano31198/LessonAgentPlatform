@@ -24,9 +24,12 @@ import jakarta.validation.constraints.Size;
 @RequestMapping("/api/platform/annotations")
 public class PlatformAnnotationBatchController {
     private final PlatformAnnotationService annotations;
+    private final com.zone.lesoongen.auth.PlatformAccessService access;
 
-    public PlatformAnnotationBatchController(PlatformAnnotationService annotations) {
+    public PlatformAnnotationBatchController(PlatformAnnotationService annotations,
+            com.zone.lesoongen.auth.PlatformAccessService access) {
         this.annotations = annotations;
+        this.access = access;
     }
 
     public record VersionRef(@NotBlank String lessonId, @NotBlank String versionId) {}
@@ -40,12 +43,14 @@ public class PlatformAnnotationBatchController {
 
     @PostMapping("/batches")
     public ResponseEntity<Map<String, Object>> startBatch(@Valid @RequestBody StartBatch input) {
-        return ResponseEntity.status(HttpStatus.ACCEPTED)
-                .body(annotations.createBatch(
+        input.items().forEach(item -> access.requireOwnedLesson(item.lessonId()));
+        Map<String, Object> result = annotations.createBatch(
                         input.items().stream()
                                 .map(item -> new BatchItemRef(item.lessonId(), item.versionId()))
                                 .toList(),
-                        input.suggest()));
+                        input.suggest());
+        access.registerExternalTask("F1_BATCH", String.valueOf(result.get("batchId")));
+        return ResponseEntity.status(HttpStatus.ACCEPTED).body(result);
     }
 
     @GetMapping("/batches/{batchId}")
@@ -66,8 +71,10 @@ public class PlatformAnnotationBatchController {
 
     @PostMapping("/comparisons")
     public ResponseEntity<Map<String, Object>> startComparison(@Valid @RequestBody StartComparison input) {
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(annotations.createComparison(input.annotationIds()));
+        input.annotationIds().forEach(access::requireOwnedAnnotation);
+        Map<String, Object> result = annotations.createComparison(input.annotationIds());
+        access.registerExternalTask("F1_COMPARISON", String.valueOf(result.get("comparisonId")));
+        return ResponseEntity.status(HttpStatus.CREATED).body(result);
     }
 
     @GetMapping("/comparisons/{comparisonId}")
